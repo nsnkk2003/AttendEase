@@ -1,207 +1,251 @@
 import cv2
-import face_recognition
 import numpy as np
-from datetime import datetime
-from pymongo import MongoClient
-import tkinter as tk
-from tkinter import messagebox, ttk
-import pandas as pd
+import os
+import dlib
+import firebase_admin
+from firebase_admin import credentials, db
+from tkinter import messagebox
+import csv
 
-# Set up MongoDB connection
-client = MongoClient('mongodb://localhost:27017/')  # Your MongoDB connection string
-db = client['smart_attendance_system']  # Database name
-faces_collection = db['faces']  # Collection for faces
-students_collection = db['students']  # Collection for students
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate("attendease-90f2d-firebase-adminsdk-811vx-15ca6d290e.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://attendease-90f2d-default-rtdb.firebaseio.com/'
+})
 
-# Register student function
-def register_student(roll_no, name, year, section):
-    # Check if the roll number already exists
-    if students_collection.find_one({'roll_no': roll_no}):
-        messagebox.showerror("Error", f"Roll number {roll_no} is already registered.")
-        return
+# Paths to models and encoding folder
+PREDICTOR_PATH = "shape_predictor_68_face_landmarks.dat"
+RECOGNIZER_PATH = "dlib_face_recognition_resnet_model_v1.dat"
 
-    # Initialize the webcam and capture face encodings
-    cam = cv2.VideoCapture(0)
-    face_encodings = []
+# Load Dlib models
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(PREDICTOR_PATH)
+recognizer = dlib.face_recognition_model_v1(RECOGNIZER_PATH)
 
-    messagebox.showinfo("Info", "Please face the camera for automatic registration. It will capture your face multiple times.")
+# Constants for subjects
+DBMS = 'DBMS'
+OS = 'OS'
+CS = 'CS'
+ASN = 'ASN'
 
-    while len(face_encodings) < 10:  # Automatically capture 10 face encodings
-        ret, frame = cam.read()
-        if not ret:
-            messagebox.showerror("Error", "Camera not detected!")
-            break
+# Function to extract face encoding
+def extract_face_encoding(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray)
+    
+    if len(faces) == 0:
+        return None
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_frame)
-        if face_locations:
-            face_encoding = face_recognition.face_encodings(rgb_frame, face_locations)[0]
-            face_encodings.append(face_encoding)
-            cv2.imshow("Registering Face", frame)
+    face = faces[0]  # Get the first face detected
+    shape = predictor(gray, face)  # Get facial landmarks
+    face_encoding = np.array(recognizer.compute_face_descriptor(image, shape))  # Get the 128D face encoding
+    return face_encoding
+
+# Register a student's face and store info in Firebase
+def register_student(roll_no, name):
+    cap = cv2.VideoCapture(0)
+    angles = ['front', 'left', 'right', 'up', 'down']
+    face_samples = []
+
+    messagebox.showinfo("Instructions", "Please look at the camera and follow the prompts to take pictures.")
+
+    for angle in angles:
+        messagebox.showinfo("Capture", f"Position your face {angle} and press Enter.")
         
-        if cv2.waitKey(1) & 0xFF == 27:  # Press ESC to cancel registration
-            break
-
-    cam.release()
-    cv2.destroyAllWindows()
-
-    if len(face_encodings) == 10:
-        # Store student data in MongoDB
-        student_data = {'roll_no': roll_no, 'name': name, 'year': year, 'section': section}
-        students_collection.insert_one(student_data)
-
-        # Store face encodings in MongoDB
-        for encoding in face_encodings:
-            faces_collection.insert_one({'roll_no': roll_no, 'face_encoding': encoding.tolist()})
-
-        messagebox.showinfo("Success", f"Student {name} registered successfully!")
-    else:
-        messagebox.showerror("Error", "Failed to capture enough face data for registration.")
-
-# Attendance function with subject-based roll number verification
-def take_attendance(subject_code, roll_no):
-    # Fetch stored face encodings for the given roll number
-    face_record = faces_collection.find_one({'roll_no': roll_no})
-
-    if face_record is None or 'face_encoding' not in face_record:
-        messagebox.showerror("Error", "No face data found for this roll number.")
-        return
-
-    # Load the face encodings from MongoDB
-    face_encodings = np.array(face_record['face_encoding'])
-
-    cam = cv2.VideoCapture(0)
-    recognized = False
-
-    messagebox.showinfo("Info", "Please face the camera for attendance verification.")
-
-    while True:
-        ret, frame = cam.read()
+        ret, frame = cap.read()
         if not ret:
-            messagebox.showerror("Error", "Camera not detected!")
+            messagebox.showerror("Error", "Failed to capture image. Exiting...")
             break
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_frame)
-        if face_locations:
-            current_face_encoding = face_recognition.face_encodings(rgb_frame, face_locations)[0]
-            matches = face_recognition.compare_faces([face_encodings], current_face_encoding)
+        # Extract and save the face encoding (skip saving the photo)
+        encoding = extract_face_encoding(frame)
+        if encoding is not None:
+            face_samples.append(encoding)
+        else:
+            messagebox.showwarning("Warning", f"No face detected in the {angle} view.")
 
-            if True in matches:
-                recognized = True
-                break
-
-        cv2.imshow("Taking Attendance", frame)
-        if cv2.waitKey(1) & 0xFF == 27:  # Press ESC to cancel
-            break
-
-    cam.release()
+    cap.release()
     cv2.destroyAllWindows()
 
-    if recognized:
-        attendance_data = {
-            'roll_no': roll_no,
-            'subject_code': subject_code,
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        db['attendance'].insert_one(attendance_data)
-        messagebox.showinfo("Success", f"Attendance marked for Roll No: {roll_no} in {subject_code}.")
+    if face_samples:
+        # Store face encodings in Firebase
+        try:
+            student_ref = db.reference(f'encodings/{roll_no}')
+            for i, encoding in enumerate(face_samples):
+                student_ref.child(f'encoding_{i}').set(encoding.tolist())  # Convert numpy array to list
+            
+            # Insert student info in Firebase (name, roll_no, and attendance)
+            attendance_ref = db.reference('attendance')
+            attendance_ref.child(roll_no).set({
+                'name': name,
+                DBMS: 0,  # Change to uppercase
+                OS: 0,    # Change to uppercase
+                CS: 0,    # Change to uppercase
+                ASN: 0,   # Change to uppercase
+                'present_classes': 0
+            })
+            messagebox.showinfo("Success", f"Successfully registered {name} with Roll No {roll_no}!")
+        except Exception as err:
+            messagebox.showerror("Error", f"Firebase error: {err}")
     else:
-        messagebox.showerror("Error", "Face not matched!")
+        messagebox.showerror("Error", f"Failed to capture valid face encodings for {name}.")
 
-# Export attendance function
-def export_attendance(section):
-    attendance_data = list(db['attendance'].find({'section': section}))
-    if not attendance_data:
-        messagebox.showerror("Error", f"No attendance records found for section {section}.")
-        return
+# Start a class and increment total classes
+def start_class(subject):
+    try:
+        attendance_ref = db.reference('classes').child(subject)
+        current_classes = attendance_ref.get()
 
-    df = pd.DataFrame(attendance_data)
-    file_name = f"attendance_{section}_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
-    df.to_excel(file_name, index=False)
-    messagebox.showinfo("Success", f"Attendance exported to {file_name}")
+        if current_classes is None:
+            attendance_ref.set(1)  # Initialize if it doesn't exist
+        else:
+            attendance_ref.set(current_classes + 1)  # Increment existing count
 
-# GUI for Taking Attendance and Registering Students
-def main_menu():
-    window = tk.Tk()
-    window.title("Smart Attendance System")
+        messagebox.showinfo("Success", f"Started {subject} class. Total classes incremented.")
+    except Exception as err:
+        messagebox.showerror("Error", f"Firebase error: {err}")
 
-    # Registration section
-    reg_label = tk.Label(window, text="Register Student")
-    reg_label.pack()
+# Verify and mark attendance
+def mark_attendance(roll_no, subject):
+    try:
+        # Retrieve encodings from Firebase
+        encodings_ref = db.reference(f'encodings/{roll_no}')
+        encodings = encodings_ref.get()
 
-    reg_roll_label = tk.Label(window, text="Roll No:")
-    reg_roll_label.pack()
-    reg_roll_entry = tk.Entry(window)
-    reg_roll_entry.pack()
+        if not encodings:
+            messagebox.showerror("Error", f"No encodings found for Roll No {roll_no}. Please register first.")
+            return
 
-    reg_name_label = tk.Label(window, text="Name:")
-    reg_name_label.pack()
-    reg_name_entry = tk.Entry(window)
-    reg_name_entry.pack()
+        encodings = [np.array(enc) for enc in encodings.values()]  # Convert back to numpy arrays
 
-    reg_year_label = tk.Label(window, text="Year:")
-    reg_year_label.pack()
-    reg_year_entry = tk.Entry(window)
-    reg_year_entry.pack()
+        cap = cv2.VideoCapture(0)
+        messagebox.showinfo("Attendance", "Please look at the camera to verify your identity.")
 
-    reg_section_label = tk.Label(window, text="Section:")
-    reg_section_label.pack()
-    reg_section_entry = tk.Entry(window)
-    reg_section_entry.pack()
+        ret, frame = cap.read()
+        if not ret:
+            messagebox.showerror("Error", "Failed to capture image. Exiting...")
+            cap.release()
+            return
 
-    def on_register():
-        roll_no = reg_roll_entry.get()
-        name = reg_name_entry.get()
-        year = reg_year_entry.get()
-        section = reg_section_entry.get()
-        register_student(roll_no, name, year, section)
+        captured_encoding = extract_face_encoding(frame)
+        
+        if captured_encoding is None:
+            messagebox.showerror("Error", "No face detected in the captured image.")
+            cap.release()
+            return
 
-    register_btn = tk.Button(window, text="Register", command=on_register)
-    register_btn.pack()
+        for stored_encoding in encodings:
+            distance = np.linalg.norm(captured_encoding - stored_encoding)
+            if distance < 0.5:  # Threshold for face recognition
+                try:
+                    # Increment present classes for the subject
+                    attendance_ref = db.reference('attendance').child(roll_no).child(subject)
+                    current_attendance = attendance_ref.get()
 
-    # Attendance section
-    att_label = tk.Label(window, text="Take Attendance")
-    att_label.pack()
+                    if current_attendance is None:
+                        attendance_ref.set(1)  # Initialize if it doesn't exist
+                    else:
+                        attendance_ref.set(current_attendance + 1)  # Increment existing attendance
 
-    att_roll_label = tk.Label(window, text="Roll No:")
-    att_roll_label.pack()
-    att_roll_entry = tk.Entry(window)
-    att_roll_entry.pack()
+                    # Increment total present classes
+                    total_classes_ref = db.reference('attendance').child(roll_no).child('present_classes')
+                    current_total_classes = total_classes_ref.get()
 
-    att_subject_label = tk.Label(window, text="Select Subject:")
-    att_subject_label.pack()
-    subject_var = tk.StringVar()
-    subjects = ["OS", "CNN", "DBMS", "Java"]
-    subject_dropdown = ttk.Combobox(window, textvariable=subject_var, values=subjects)
-    subject_dropdown.pack()
+                    if current_total_classes is None:
+                        total_classes_ref.set(1)  # Initialize if it doesn't exist
+                    else:
+                        total_classes_ref.set(current_total_classes + 1)  # Increment existing total classes
 
-    def on_attendance():
-        roll_no = att_roll_entry.get()
-        subject_code = subject_var.get()
-        take_attendance(subject_code, roll_no)
+                    messagebox.showinfo("Success", f"Attendance marked for {roll_no} in {subject}!")
+                    cap.release()
+                    return
+                except Exception as err:
+                    messagebox.showerror("Error", f"Firebase error: {err}")
+                    cap.release()
+                    return
 
-    attendance_btn = tk.Button(window, text="Take Attendance", command=on_attendance)
-    attendance_btn.pack()
+        messagebox.showerror("Error", "Verification failed! Face not recognized.")
+        cap.release()
 
-    # Export section
-    export_label = tk.Label(window, text="Export Attendance")
-    export_label.pack()
+    except Exception as err:
+        messagebox.showerror("Error", f"Firebase error: {err}")
 
-    export_section_label = tk.Label(window, text="Section:")
-    export_section_label.pack()
-    export_section_entry = tk.Entry(window)
-    export_section_entry.pack()
+def export_full_attendance_percentages():
+    try:
+        # Fetch attendance data from Firebase
+        attendance_ref = db.reference('attendance')
+        attendance_data = attendance_ref.get()
 
-    def on_export():
-        section = export_section_entry.get()
-        export_attendance(section)
+        # Debugging: Check what data is fetched
+        print("Attendance Data:", attendance_data)
 
-    export_btn = tk.Button(window, text="Export Attendance", command=on_export)
-    export_btn.pack()
+        if not attendance_data:
+            messagebox.showinfo("Export Attendance", "No attendance data available.")
+            return
 
-    window.mainloop()
+        # Handle both dictionary and list structures
+        if isinstance(attendance_data, dict):
+            students = attendance_data.items()  # If it's a dictionary, iterate over items
+        elif isinstance(attendance_data, list):
+            students = enumerate(attendance_data)  # If it's a list, iterate using an index
+        else:
+            messagebox.showerror("Export Attendance", "Invalid attendance data format.")
+            return
 
-# Run the main menu
-if __name__ == "__main__":
-    main_menu()
+        # Prepare CSV data
+        csv_data = []
+        header = ['Roll No', 'Name', 'DBMS Attendance (%)', 'OS Attendance (%)', 'CS Attendance (%)', 'ASN Attendance (%)']
+        csv_data.append(header)
+
+        # Fetch class data
+        classes_ref = db.reference('classes')
+        classes_data = classes_ref.get()
+
+        # Debugging: Check what class data is fetched
+        print("Classes Data:", classes_data)
+
+        # Default values for classes if not found
+        dbms_classes = classes_data.get(DBMS, 1) if classes_data else 1  # To avoid division by zero
+        os_classes = classes_data.get(OS, 1) if classes_data else 1
+        cs_classes = classes_data.get(CS, 1) if classes_data else 1
+        asn_classes = classes_data.get(ASN, 1) if classes_data else 1
+
+        # Extracting attendance details for each student
+        for roll_no, student_data in students:
+            if student_data is None:  # Skip if no student data is found
+                continue
+
+            name = student_data.get('name', 'Unknown')
+
+            # Calculate percentages
+            dbms_attendance = student_data.get(DBMS, 0)
+            os_attendance = student_data.get(OS, 0)
+            cs_attendance = student_data.get(CS, 0)
+            asn_attendance = student_data.get(ASN, 0)
+
+            dbms_percentage = (dbms_attendance / dbms_classes) * 100
+            os_percentage = (os_attendance / os_classes) * 100
+            cs_percentage = (cs_attendance / cs_classes) * 100
+            asn_percentage = (asn_attendance / asn_classes) * 100
+
+            csv_data.append([
+                roll_no,
+                name,
+                round(dbms_percentage, 2),
+                round(os_percentage, 2),
+                round(cs_percentage, 2),
+                round(asn_percentage, 2)
+            ])
+
+        # Define the CSV file path
+        csv_file_path = "attendance_percentages.csv"
+        with open(csv_file_path, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(csv_data)
+
+        messagebox.showinfo("Export Attendance", f"Attendance percentages exported to {csv_file_path} successfully!")
+
+    except Exception as e:
+        messagebox.showerror("Export Attendance", f"Error exporting attendance: {str(e)}")
+
+# Note: Ensure that the necessary UI components and main loop are implemented to call these functions as required.

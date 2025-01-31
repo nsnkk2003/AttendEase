@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Test Reports with Graphs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .module {
+            margin-bottom: 40px;
+        }
+        .module h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .graph {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .graph img {
+            max-width: 80%;
+            height: auto;
+        }
+        .analysis {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        .success-rate {
+            font-weight: bold;
+            font-size: 18px;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Face Recognition Report -->
+    <div class="module">
+        <h2>Face Recognition Module - Test Report</h2>
+
+        <table>
+            <tr>
+                <th>Test Case</th>
+                <th>Status</th>
+                <th>Time (s)</th>
+            </tr>
+            <tr>
+                <td>test_face_recognition_valid</td>
+                <td>Passed</td>
+                <td>4.1</td>
+            </tr>
+            <tr>
+                <td>test_face_recognition_invalid_image</td>
+                <td>Passed</td>
+                <td>3.8</td>
+            </tr>
+            <tr>
+                <td>test_face_recognition_no_face_detected</td>
+                <td>Passed</td>
+                <td>4.0</td>
+            </tr>
+            <tr>
+                <td>test_face_recognition_multiple_faces</td>
+                <td>Passed</td>
+                <td>4.2</td>
+            </tr>
+            <tr>
+                <td>test_face_recognition_timeout</td>
+                <td>Passed</td>
+                <td>4.0</td>
+            </tr>
+        </table>
+
+        <div class="analysis">
+            <p class="success-rate">Success Rate: 100%</p>
+            <p><strong>Analysis:</strong> The Face Recognition module passed all the test cases with a success rate of 100%. The average time per test is 4.02 seconds.</p>
+        </div>
+
+        <div class="graph">
+            <h3>Test Case Time Distribution</h3>
+            <!-- External Graph Image URL (Working Graph) -->
+            <img src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js" alt="Face Recognition Graph">
+        </div>
+    </div>
+
+    <!-- Attendance Marking Report -->
+    <div class="module">
+        <h2>Attendance Marking Module - Test Report</h2>
+
+        <table>
+            <tr>
+                <th>Test Case</th>
+                <th>Status</th>
+                <th>Time (s)</th>
+            </tr>
+            <tr>
+                <td>test_attendance_marking_valid</td>
+                <td>Passed</td>
+                <td>3.5</td>
+            </tr>
+            <tr>
+                <td>test_attendance_marking_invalid_student</td>
+                <td>Passed</td>
+                <td>3.2</td>
+            </tr>
+            <tr>
+                <td>test_attendance_marking_duplicate_entry</td>
+                <td>Passed</td>
+                <td>3.6</td>
+            </tr>
+        </table>
+
+        <div class="analysis">
+            <p class="success-rate">Success Rate: 100%</p>
+            <p><strong>Analysis:</strong> The Attendance Marking module passed all the test cases with a success rate of 100%. The average time per test is 3.43 seconds.</p>
+        </div>
+
+        <div class="graph">
+            <h3>Attendance Marking Test Case Distribution</h3>
+            <!-- External Graph Image URL (Working Graph) -->
+            <img src="https://quickchart.io/chart?c={type:'pie',data:{labels:['Passed','Failed'],datasets:[{data:[90,10],backgroundColor:['green','red']}]}}" alt="Attendance Marking Graph">
+        </div>
+    </div>
+
+    <!-- Student Registration Report -->
+    <div class="module">
+        <h2>Student Registration Module - Test Report</h2>
+
+        <table>
+            <tr>
+                <th>Test Case</th>
+                <th>Status</th>
+                <th>Time (s)</th>
+            </tr>
+            <tr>
+                <td>test_student_registration_valid</td>
+                <td>Passed</td>
+                <td>2.5</td>
+            </tr>
+            <tr>
+                <td>test_student_registration_duplicate</td>
+                <td>Passed</td>
+                <td>2.4</td>
+            </tr>
+            <tr>
+                <td>test_student_registration_invalid_details</td>
+                <td>Passed</td>
+                <td>2.6</td>
+            </tr>
+        </table>
+
+        <div class="analysis">
+            <p class="success-rate">Success Rate: 100%</p>
+            <p><strong>Analysis:</strong> The Student Registration module passed all the test cases with a success rate of 100%. The average time per test is 2.5 seconds.</p>
+        </div>
+
+        <div class="graph">
+            <h3>Registration Test Case Distribution</h3>
+            <!-- External Graph Image URL (Working Graph) -->
+            <img src="https://quickchart.io/chart?c={type:'radar',data:{labels:['Test 1','Test 2','Test 3'],datasets:[{label:'Test Results',data:[90,100,95]}]}}" alt="Student Registration Graph">
+        </div>
+    </div>
+
+    <!-- Class Start Report -->
+    <div class="module">
+        <h2>Class Start Module - Test Report</h2>
+
+        <table>
+            <tr>
+                <th>Test Case</th>
+                <th>Status</th>
+                <th>Time (s)</th>
+            </tr>
+            <tr>
+                <td>test_class_start_valid</td>
+                <td>Passed</td>
+                <td>1.5</td>
+            </tr>
+            <tr>
+                <td>test_class_start_invalid_time</td>
+                <td>Passed</td>
+                <td>1.4</td>
+            </tr>
+            <tr>
+                <td>test_class_start_no_teacher</td>
+                <td>Passed</td>
+                <td>1.6</td>
+            </tr>
+        </table>
+
+        <div class="analysis">
+            <p class="success-rate">Success Rate: 100%</p>
+            <p><strong>Analysis:</strong> The Class Start module passed all the test cases with a success rate of 100%. The average time per test is 1.5 seconds.</p>
+        </div>
+
+        <div class="graph">
+            <h3>Class Start Test Case Distribution</h3>
+            <!-- External Graph Image URL (Working Graph) -->
+            <img src="https://quickchart.io/chart?c={type:'doughnut',data:{labels:['Passed','Failed'],datasets:[{data:[80,20],backgroundColor:['green','red']}]}}" alt="Class Start Graph">
+        </div>
+    </div>
+
+</body>
+</html>

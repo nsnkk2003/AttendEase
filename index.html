@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Attendance System</title>
+
+    <!-- Firebase and other JavaScript code -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.8.2/firebase-app.js";
+        import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.8.2/firebase-database.js";
+
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC02krEQzh7y9ZAliZ3ZezE0i2hSBT34xA",
+            authDomain: "attendease-90f2d.firebaseapp.com",
+            databaseURL: "https://attendease-90f2d-default-rtdb.firebaseio.com",
+            projectId: "attendease-90f2d",
+            storageBucket: "attendease-90f2d.firebasestorage.app",
+            messagingSenderId: "451598602723",
+            appId: "1:451598602723:web:c92218a898d7216d3d90d6",
+            measurementId: "G-7JBZX1863J"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // Add event listener to login button
+        document.addEventListener("DOMContentLoaded", function () {
+            showLoginForm(); // Show the login form on page load
+        });
+
+        // Function to fetch attendance data from Firebase
+        function fetchAttendanceData(rollNo) {
+            const attendanceRef = ref(database, 'attendance/' + rollNo);
+            get(attendanceRef)
+                .then((snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const classesRef = ref(database, 'classes');
+                        get(classesRef).then((classesSnapshot) => {
+                            const classesData = classesSnapshot.val();
+                            const totalClasses = {
+                                DBMS: classesData.DBMS || 5,
+                                OS: classesData.OS || 5,
+                                CS: classesData.CS || 5,
+                                ASN: classesData.ASN || 5
+                            };
+
+                            const percentages = {
+                                DBMS: (data.DBMS / totalClasses.DBMS) * 100 || 0,
+                                OS: (data.OS / totalClasses.OS) * 100 || 0,
+                                CS: (data.CS / totalClasses.CS) * 100 || 0,
+                                ASN: (data.ASN / totalClasses.ASN) * 100 || 0
+                            };
+
+                            const studentName = data.name; // Assuming the name is stored in the attendance record
+                            displayAttendance(rollNo, studentName, percentages);
+                        });
+                    } else {
+                        alert("No data found for Roll No: " + rollNo);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error fetching attendance data:", error);
+                    alert("Error fetching data. Please try again.");
+                });
+        }
+
+        // Function to display attendance results
+        function displayAttendance(rollNo, name, percentages) {
+            const resultContainer = document.getElementById('result-container');
+            resultContainer.innerHTML = `
+                <h2>Attendance for Roll No: ${rollNo} - ${name}</h2>
+                <table>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Attendance (%)</th>
+                    </tr>
+                    <tr>
+                        <td>DBMS</td>
+                        <td>${percentages.DBMS.toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>OS</td>
+                        <td>${percentages.OS.toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>CS</td>
+                        <td>${percentages.CS.toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>ASN</td>
+                        <td>${percentages.ASN.toFixed(2)}%</td>
+                    </tr>
+                </table>
+                <button id="check-again-button">Check Again</button>
+            `;
+
+            document.getElementById("check-again-button").addEventListener("click", function () {
+                resultContainer.innerHTML = '';
+                showLoginForm();
+            });
+        }
+
+        // Function to show the login form
+        function showLoginForm() {
+            const resultContainer = document.getElementById('result-container');
+            resultContainer.innerHTML = `
+                <h2>Check Your Attendance</h2>
+                <label for="roll-no">Roll No:</label>
+                <input type="text" id="roll-no" placeholder="Enter your roll number" required />
+                <button id="login-button">Login</button>
+            `;
+
+            document.getElementById("login-button").addEventListener("click", function () {
+                const rollNo = document.getElementById("roll-no").value;
+                fetchAttendanceData(rollNo);
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="background-image"></div> <!-- Full-screen background image layer -->
+    <div class="login-container" id="result-container"></div> <!-- Container for displaying results -->
+</body>
+</html>
